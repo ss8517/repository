@@ -24,13 +24,12 @@ void print_matrix (double *A,const int row, const int col) {
     cout<<endl;
 }
 
-
 int main () {
     double U=1.0;
     double Lx=1.0;
     double Ly=1.0;
     double Re=100;
-    int Nx=5;//columns
+    int Nx=7;//columns
     int Ny=5;//rows
     double dt=1;//time step 
     double T=100;
@@ -41,6 +40,7 @@ int main () {
     double* s=new double[(Nx)*(Ny)]; 
     //memset(s, 0, (Nx)*(Ny)*sizeof(s[0]));//to fill array with 0s - check it 
     //initialise stream function once
+
     for (int i=0;i<Nx*Ny;++i) {
       s[i]=0.0;
     }
@@ -50,9 +50,7 @@ int main () {
             s[i*Ny+j]=1.0;
         }
     }
-
     print_matrix(s,Ny,Nx);
-    
     /*
     boundary consitions will be only used in Poisson solver RHS 
     keep convention of handout i.e i=columns, j=rows 
@@ -85,8 +83,7 @@ int main () {
     //ldA = Kl + Ku + 1 for symm banded - allowed in blas 
     //exclude padding rows 
     //no. of columns = [Ny-2]*[Nx-2](leading dimension of banded matrix)
-    //0 diagonals is ny-4
-    int ldA=4;
+    int ldA=3+(Ny-4);//0 diagonals is ny-4
     int nsv=(Ny-2)*(Nx-2);//inner stream/vorticity size 
     double *A=new double [ldA*nsv];
     const double one_dx2=-1/dx/dx;//1st KU 
@@ -95,28 +92,23 @@ int main () {
     //v=A s : s is a vector of vector columns
     //configure A elements up to position 3 
     //diagonal
-    A[0*ldA+3]=two_dxdy;
-    A[1*ldA+3]=two_dxdy;
-    A[2*ldA+3]=two_dxdy;
-    //1st KU
-     A[1*ldA+2]=one_dy2;
-     A[2*ldA+2]=one_dy2;
-     //2nd Ku
-     A[2*ldA+1]=0.0;
-      for (int i = 3; i < nsv; ++i) {
-          A[i*ldA]=one_dx2;
-          A[i*ldA+1]=0.0;
-          if (i%3==0) {
-              A[i*ldA+2]=0.0;
-          }
-          else {
-               A[i*ldA+2]=one_dy2;
-          }
-          A[i*ldA+3]=two_dxdy;
+
+    for (int i = 0; i < nsv; ++i) {
+        A[i*ldA]=one_dx2;//doesnt change - final Kl row 
+            
+        for (int j=1;j<(Ny-3);++j) {//populate all diagonals that have 0s
+            A[i*ldA+j]=0.0;
+        }
+        if (i%(Ny-2)==0) {
+            A[i*ldA+(Ny-4)+1]=0.0;
+         }
+        else {
+            A[i*ldA+(Ny-4)+1]=one_dy2;
+        }
+          A[i*ldA+(Ny-4)+2]=two_dxdy;//row of 4s
         }
 
     print_matrix(A,ldA,nsv);
-          
     //solve for inner vorticity 
     //use inner columns of s in vector form 
     //operate on submatrices of s and v 
@@ -125,19 +117,30 @@ int main () {
     double *s_inner=new double [(Ny-2)*(Nx-2)];
     //copy inner columns of s into s_inner 
      
+    
+    for (int i=1;i<Nx-1;++i) {
+        for (int j=1;j<Ny-1;++j){
+        //taken as normal array now
+           s_inner[(i-1)*Ny+j-1]=s[i*Ny+j];
+        }
+     }
+    
+   
+    print_matrix(s_inner,Ny-2,Nx-2);
+    /*
     for (int i=0;i<(Nx-1)*(Ny-1);++i) {
         s_inner[i]=1;
     }
+    */
        
-    const int KL=3; 
+    const int KL=2+(Ny-4); 
     cblas_dsbmv(CblasColMajor, CblasUpper,nsv,KL,1.0,A,ldA,
                     s_inner,1,0.0,v_inner,1); // v_inner <= A s_inner + v_inner
 
     //Calculation of inner vorticity. After that make v by compining boundary conditions and inner
     //indices from 1 to N-1 as we only want the inner vorticities
+    
     print_matrix(v_inner,Ny-2,Nx-2);
-    
-    
     //for loop to check if correct
     
     for (int i=1;i<Nx-1;++i) {//columns 
@@ -146,7 +149,6 @@ int main () {
             ((one_dy2)*(s[i*Ny+j+1]-2*s[i*Ny+j]+s[i*Ny+j-1])));
         }
     }
-
     print_matrix(v,Ny,Nx);
 
     //commplete vorticity matrix with boundaries 

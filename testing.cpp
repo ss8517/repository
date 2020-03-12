@@ -118,7 +118,7 @@ int main () {
 
     cout<<endl;
     
-    
+
     //print v
     for (int i=0;i<Ny;++i) {
         for (int j=0;j<Nx;++j){
@@ -133,5 +133,26 @@ int main () {
 
     delete [] v,s,s_sub,s_inner;
 }
+/* original A matrix
+   A[0*ldA+3]=two_dxdy;
+    A[1*ldA+3]=two_dxdy;
+    A[2*ldA+3]=two_dxdy;
+    //1st KU
+     A[1*ldA+2]=one_dy2;
+     A[2*ldA+2]=one_dy2;
+     //2nd Ku
+     A[2*ldA+1]=0.0;
+      for (int i = 3; i < nsv; ++i) {
+          A[i*ldA]=one_dx2;
+          A[i*ldA+1]=0.0;
+          if (i%3==0) {
+              A[i*ldA+2]=0.0;
+          }
+          else {
+               A[i*ldA+2]=one_dy2;
+          }
+          A[i*ldA+3]=two_dxdy;
+        }
 
-
+    print_matrix(A,ldA,nsv);
+*/
