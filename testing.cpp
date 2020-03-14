@@ -156,3 +156,14 @@ int main () {
 
     print_matrix(A,ldA,nsv);
 */
+
+/*
+double * v_test=new double[nsv];
+    //print v_inner to check 
+    cblas_dcopy(nsv,v_inner,1,v_test,1);
+   for (int i=1;i<Nx-1;++i) {
+        for (int j=1;j<Ny-1;++j){
+           s_inner[(i-1)*Ny+j-1]=s[i+Ny*j];
+        }
+     } 
+*/
