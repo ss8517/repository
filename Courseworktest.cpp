@@ -37,8 +37,11 @@ const double one_dy2,const double two_dxdy);
 void FillGBmatrix_1stDerCentral_col(double *B, int ldB, int nsv,int Ny,double one_2dy);
 void FillGBmatrix_1stDerCentral_row(double *B, int ldB, int nsv,int Nx,double one_2dx);
 void print_matrix (const double *A,const int row, const int col);
+void print_matrix_row (const double *A,const int row, const int col);
 void LUfactorisation(double* A, int nsv2, int lda2,int KL,int KU);
 void SolveLapack(int nsv, double* A, double* omega, double *psi, double* u, int nsv2, int lda2, int* ipiv);
+void Col2Row(double* A_col,double* B_row,int row,int col);
+void Row2Col(double* A_row,double* B_col,int row,int col);
 
 int main () {
     double Lx=1.0;
@@ -70,19 +73,32 @@ int main () {
         s_inner[i]=1;
     }
 
-    
+    cout<<"s_inner is: "<<endl;
     print_matrix(s_inner,Ny-2,Nx-2);
+
+     /**
+     * @brief Computes Boundary conditions in distinct vectors
+     * of size (Ny-2)*(Nx-2) from s 
+     * @param v_BC_top 
+     * @param v_BC_bottom
+     * @param v_BC_left
+     * @param v_BC_right
+     */
 
     double* v_BC_top=new double[(Nx-2)*(Ny-2)];
     double* v_BC_bottom=new double[(Nx-2)*(Ny-2)];
     double* v_BC_left=new double[(Nx-2)*(Ny-2)];
     double* v_BC_right=new double[(Nx-2)*(Ny-2)];
+    
     BoundaryConditions(s_inner,v_BC_top,v_BC_bottom,v_BC_left,v_BC_right,Nx,Ny,dx,dy);
-
-
+    cout<<"The Bopundary conditions are: \n";
+    cout<<"Top: \n";
     print_matrix(v_BC_top,Ny-2,Nx-2);
+    cout<<"Bottom: \n";
     print_matrix(v_BC_bottom,Ny-2,Nx-2);
+    cout<<"Left: \n";
     print_matrix(v_BC_left,Ny-2,Nx-2);
+    cout<<"Right: \n";
     print_matrix(v_BC_right,Ny-2,Nx-2);
     
     //produce the symmetric banded matrix A remember ldA*Number of columns 
@@ -100,20 +116,12 @@ int main () {
     //v=A s : s is a vector of vector columns
     //configure A elements up to position 3 
     //diagonal
-    FillSBMatrix(nsv,A,ldA,Nx,Ny,one_dx2,one_dy2,two_dxdy);
-    print_matrix(A,ldA,nsv);
-    
     double *v_inner=new double [(Ny-2)*(Nx-2)];//no need for preallocation 
     //empty arrays to store blas multiplication results
-    double *s_inner_row=new double [(Ny-2)*(Nx-2)];
-    double *v_inner_col=new double [(Ny-2)*(Nx-2)];
     
-    double *s_inner_col=new double [(Ny-2)*(Nx-2)];
-    double *v_inner_row=new double [(Ny-2)*(Nx-2)];
-    double *mult_1=new double [(Ny-2)*(Nx-2)];
-    
-
+    FillSBMatrix(nsv,A,ldA,Nx,Ny,one_dx2,one_dy2,two_dxdy);
     InnerVorticity(nsv,KL,A,ldA,s_inner,v_inner);// v_inner <= A s_inner + v_inner
+    cout<<"Inner vorticity @ t \n";
     print_matrix(v_inner,Ny-2,Nx-2);
 
      //for loops for check
@@ -123,47 +131,95 @@ int main () {
             ((one_dy2)*(s[i*Ny+j+1]-2*s[i*Ny+j]+s[i*Ny+j-1])));
         }
     }
-
+    cout<<"Inner vorticity @ t (for loops):  \n";
     print_matrix(v,Ny,Nx);
-    int ldAgb=1+2*KL+KU;//2*Kl+Ku+1
-    double *A_gb=new double [ldAgb*nsv];
-    FillGBMatrix(nsv,A_gb,ldAgb,Nx,Ny,one_dx2,one_dy2,two_dxdy);
-    print_matrix(A_gb,ldAgb,nsv);
-    LUfactorisation(A_gb,nsv,ldAgb,KL,KU);
-    //print_matrix(A_gb,ldAgb,nsv);
-    //Banded matrix for central difference scheme
-    int ldB=3;//1+kl+ku because cblas doesnt need padding rows 
+    
+    /**
+     * @brief makes General banded matrices vorticity at t + Dt  
+     * @param ldB - 1+kl+ku , number of rows, padding roes excluded
+     * @param nsvB number of columns 
+     * 
+    */
+
+    int ldB=3;
     int nsvB=(Ny-2)*(Nx-2);
     double one_2dy=1.0/2.0/dy;
     double one_2dx=1.0/2.0/dx;
-    double *B_col=new double[ldB*nsvB];//columns of B same number as rows of s_inner/v_inner which for columnar form is 
+    
+    double *B_col=new double[ldB*nsvB];
     double *B_row=new double[ldB*nsvB];
+    
     FillGBmatrix_1stDerCentral_col(B_col,ldB,nsvB,Ny,one_2dy);
-    FillGBmatrix_1stDerCentral_col(B_row,ldB,nsvB,Nx,one_2dx);
-    print_matrix(B_col,ldB,nsvB);
-    print_matrix(B_row,ldB,nsvB);
-    //***columnar form does not need transposing i.e column i constant, row j varies
+    FillGBmatrix_1stDerCentral_row(B_row,ldB,nsvB,Nx,one_2dx);
+
+    double *v_inner_col=new double [(Ny-2)*(Nx-2)];
+    double *s_inner_col=new double [(Ny-2)*(Nx-2)];
+    
+    double *s_inner_row=new double [(Ny-2)*(Nx-2)];
+    double *s_inner_row_result1=new double [(Ny-2)*(Nx-2)];
+    double *s_inner_row_result2=new double [(Ny-2)*(Nx-2)];
+
+    double *v_inner_row=new double [(Ny-2)*(Nx-2)];
+    double *v_inner_row_result1=new double [(Ny-2)*(Nx-2)];
+    double *v_inner_row_result2=new double [(Ny-2)*(Nx-2)];
+
+    double *mult_1=new double [(Ny-2)*(Nx-2)];
+    double *mult_2=new double [(Ny-2)*(Nx-2)];
+    cout<<"1st mult s_inner_col: \n";
     cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_col,ldB,s_inner,1,0.0,s_inner_col,1);
+    print_matrix(s_inner_col,Ny-2,Nx-2);
     
-    //cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_col,ldB,v_inner,1,0.0,v_inner_col,1);
-    //add bottom boundary conditions for vorticity and subtract top Boundary conditions 
-    //use daxpy for adding the boundary 
-    print_matrix(v_inner_col,Ny-2,Nx-2);
-    
-    /*
-    cblas_daxpy((Nx-2)*(Ny-2),-1.0,v_BC_top,1,v_inner_col,1);//v_inner updated
-    cblas_daxpy((Nx-2)*(Ny-2),1.0,v_BC_bottom,1,v_inner_col,1);//v_inner updated
+    //transpose v
+    cout<<"1st mult v_inner_row_result2: \n";
+    Col2Row(v_inner,v_inner_row,Nx-2,Ny-2);
+    cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_row,ldB,v_inner_row,1,0.0,v_inner_row_result1,1);
+    Row2Col(v_inner_row_result1,v_inner_row_result2,Ny-2,Nx-2);//v_inner_row_result2 is in column form
+    print_matrix(v_inner_row_result2,Ny-2,Nx-2);
+    //Add the boundary conditions
 
-    print_matrix(s_inner_col,Ny-2,Nx-2);//stream multiplication
-    print_matrix(v_inner_col,Ny-2,Nx-2);//vorticity multiplication and added BC.
+    cout<<"1st mult V_inner_row_result2 after BCs added: \n";
+    cblas_daxpy((Nx-2)*(Ny-2),1.0,v_BC_left,1,v_inner_row_result2,1);//v_inner updated
+    cblas_daxpy((Nx-2)*(Ny-2),-1.0,v_BC_right,1,v_inner_row_result2,1);//
+    print_matrix(v_inner_row_result2,Ny-2,Nx-2);
     
-    cblas_dsbmv(CblasColMajor, CblasUpper,nsv, 0, 1.0, s_inner_col, 1,v_inner_col,1, 0.0,mult_1, 1);//v_inner updated
-    
+    cout<<"Mult_1: s_inner_col * v_inner_row_result2 : \n";
+    cblas_dsbmv(CblasColMajor, CblasUpper,nsv, 0, 1.0, s_inner_col, 1,v_inner_row_result2,1, 0.0,mult_1, 1);
     print_matrix(mult_1,Ny-2,Nx-2);
-    */
 
-    delete [] s,v_inner,s_inner,A,A_gb,B_col,s_inner_col,v_inner_col,s_inner_row,v_inner_row;
+    cout<<"2nd mult s_inner_row_result2: \n";
+    Col2Row(s_inner,s_inner_row,Nx-2,Ny-2);
+    cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_row,ldB,s_inner_row,1,0.0,s_inner_row_result1,1);
+    Row2Col(s_inner_row_result1,s_inner_row_result2,Ny-2,Nx-2);
+    print_matrix(s_inner_row_result2,Ny-2,Nx-2);
+    
+    cout<<"2nd mult v_inner_col: \n";
+    cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_col,ldB,v_inner,1,0.0,v_inner_col,1);
+    print_matrix(v_inner_col,Ny-2,Nx-2);
+
+    cout<<"2nd mult v_inner_col  after BCs added: \n";
+    cblas_daxpy((Nx-2)*(Ny-2),1.0,v_BC_bottom,1,v_inner_col,1);//v_inner updated
+    cblas_daxpy((Nx-2)*(Ny-2),-1.0,v_BC_top,1,v_inner_col,1);//
+    print_matrix(v_inner_col,Ny-2,Nx-2);
+
+    cout<<"Mult_2: s_inner_row_result2 * v_inner_col: \n";
+    cblas_dsbmv(CblasColMajor, CblasUpper,nsv, 0, 1.0, s_inner_row_result2, 1,v_inner_col,1, 0.0,mult_2, 1);
+    print_matrix(mult_2,Ny-2,Nx-2);
+
+    /**
+     * @brief Poisson solver 
+     */
+    
+    int ldAgb=1+2*KL+KU;//2*Kl+Ku+1
+    double *A_gb=new double [ldAgb*nsv];
+    FillGBMatrix(nsv,A_gb,ldAgb,Nx,Ny,one_dx2,one_dy2,two_dxdy);
+    LUfactorisation(A_gb,nsv,ldAgb,KL,KU);
+
     delete [] v_BC_top,v_BC_bottom,v_BC_left,v_BC_right;
+    delete [] v,s,v_inner,s_inner,A,A_gb,B_col,B_row;
+    delete [] s_inner_col,v_inner_col;
+    delete [] v_inner_row,v_inner_row_result1,v_inner_row_result2;
+    delete [] s_inner_row,s_inner_row_result1,s_inner_row_result2;
+    delete [] mult_1,mult_2;
 }
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
@@ -230,18 +286,19 @@ const double one_dy2,const double two_dxdy){
     }
 }
 
- void LUfactorisation(double* A, int nsv2, int lda2,int KL,int KU){     
+ void LUfactorisation(double* A, int nsv, int lda,int KL,int KU){     
     int info;
-    int *ipiv = new int[nsv2];
+    int *ipiv = new int[nsv];
     
-    F77NAME(dgbtrf)(nsv2, nsv2, KL, KU, A, lda2, ipiv, &info);
+    F77NAME(dgbtrf)(nsv, nsv, KL, KU, A, lda, ipiv, &info);
 
     if (info) {
         cout << "Failed to LU factorise matrix" << endl;
     }
 }
 
-void FillSBMatrix(int nsv, double* A, int ldA,int Nx,int Ny, const double one_dx2, const double one_dy2,const  double two_dxdy){
+void FillSBMatrix(int nsv, double* A, int ldA,int Nx,int Ny, const double one_dx2,
+ const double one_dy2,const  double two_dxdy){
      for (int i = 0; i < nsv; ++i) {
         A[i*ldA]=one_dx2;//doesnt change - final Kl row 
             
@@ -297,14 +354,23 @@ void FillGBmatrix_1stDerCentral_row(double *B, int ldB, int nsv,int Nx,double on
 void print_matrix (const double *A,const int row, const int col) {
     for (int i=0;i<row;++i) {
         for (int j=0;j<col;++j){
-            cout<<setw(4)<<A[i+row*j]<<"  ";   
+            cout<<setw(7)<<A[i+row*j]<<"  ";   
         }
         cout<<endl;
     }
     cout<<endl;
 }
 
-
+void print_matrix_row (const double *A,const int row, const int col) {//print matrix that is in row major format
+    for (int i=0;i<row;++i) {
+        for (int j=0;j<col;++j){
+        //taken as normal array now
+            cout<<setw(7)<<A[i*col+j]<<"  ";   
+        }
+        cout<<endl;
+    }
+    cout<<endl;
+}
 void SolveLapack(int nsv, double* A, double* omega, double *psi, double* u, int nsv2, int lda2, int* ipiv) {
     int info;
     int nrhs = 1;
@@ -323,3 +389,20 @@ void InnerVorticity(const int nsv,const int KL,double* A,const int ldA,double* s
      cblas_dsbmv(CblasColMajor, CblasUpper,nsv,KL,1.0,A,ldA,
                     s_inner,1,0.0,v_inner,1);
 }
+
+void Col2Row(double* A_col,double* B_row,int row,int col) {
+    for (int i=0;i<col;++i) {
+        for(int j=0;j<row;++j){
+            B_row[col*j+i]=A_col[row*i+j];
+        }
+    }
+}
+
+void Row2Col(double* A_row,double* B_col,int row,int col) {
+    for (int i=0;i<col;++i) {
+        for(int j=0;j<row;++j){
+            B_col[row*i+j]=A_row[col*j+i];
+        }
+    }
+}
+
