@@ -47,9 +47,9 @@ int main () {
     double Lx=1.0;
     double Ly=1.0;
     double Re=100;
-    int Nx=5;//columns
-    int Ny=5;//rows
-    double dt=1;//time step 
+    int Nx=6;//columns
+    int Ny=6;//rows
+    double dt=.01;//time step 
     double T=100;
     double dx=Lx/(Nx-1.0);
     double dy=Ly/(Ny-1.0);
@@ -104,7 +104,8 @@ int main () {
     //produce the symmetric banded matrix A remember ldA*Number of columns 
     //ldA = Kl + Ku + 1 for symm banded - allowed in blas 
     //exclude padding rows 
-    //no. of columns = [Ny-2]*[Nx-2](leading dimension of banded matrix)
+    //no. of columns = [Ny-2]*[Nx-2]- (leading dimension of banded matrix)
+
     int KL=2+(Ny-4);
     int KU=2+(Ny-4);
     int ldA=3+(Ny-4);//0 diagonals is ny-4
@@ -133,14 +134,14 @@ int main () {
     }
     cout<<"Inner vorticity @ t (for loops):  \n";
     print_matrix(v,Ny,Nx);
-    
+
     /**
      * @brief makes General banded matrices vorticity at t + Dt  
      * @param ldB - 1+kl+ku , number of rows, padding roes excluded
      * @param nsvB number of columns 
      * 
     */
-
+   
     int ldB=3;
     int nsvB=(Ny-2)*(Nx-2);
     double one_2dy=1.0/2.0/dy;
@@ -150,11 +151,12 @@ int main () {
     double *B_row=new double[ldB*nsvB];
     
     FillGBmatrix_1stDerCentral_col(B_col,ldB,nsvB,Ny,one_2dy);
+    print_matrix(B_col,ldB,nsvB);
     FillGBmatrix_1stDerCentral_row(B_row,ldB,nsvB,Nx,one_2dx);
 
     double *v_inner_col=new double [(Ny-2)*(Nx-2)];
     double *s_inner_col=new double [(Ny-2)*(Nx-2)];
-    
+
     double *s_inner_row=new double [(Ny-2)*(Nx-2)];
     double *s_inner_row_result1=new double [(Ny-2)*(Nx-2)];
     double *s_inner_row_result2=new double [(Ny-2)*(Nx-2)];
@@ -165,6 +167,8 @@ int main () {
 
     double *mult_1=new double [(Ny-2)*(Nx-2)];
     double *mult_2=new double [(Ny-2)*(Nx-2)];
+    double *mult_3=new double [(Ny-2)*(Nx-2)];
+    
     cout<<"1st mult s_inner_col: \n";
     cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_col,ldB,s_inner,1,0.0,s_inner_col,1);
     print_matrix(s_inner_col,Ny-2,Nx-2);
@@ -176,10 +180,10 @@ int main () {
     Row2Col(v_inner_row_result1,v_inner_row_result2,Ny-2,Nx-2);//v_inner_row_result2 is in column form
     print_matrix(v_inner_row_result2,Ny-2,Nx-2);
     //Add the boundary conditions
-
+    //top and right added, left and bottom subtracted
     cout<<"1st mult V_inner_row_result2 after BCs added: \n";
-    cblas_daxpy((Nx-2)*(Ny-2),1.0,v_BC_left,1,v_inner_row_result2,1);//v_inner updated
-    cblas_daxpy((Nx-2)*(Ny-2),-1.0,v_BC_right,1,v_inner_row_result2,1);//
+    cblas_daxpy((Nx-2)*(Ny-2),-one_2dx,v_BC_left,1,v_inner_row_result2,1);//v_inner updated
+    cblas_daxpy((Nx-2)*(Ny-2), one_2dx,v_BC_right,1,v_inner_row_result2,1);//
     print_matrix(v_inner_row_result2,Ny-2,Nx-2);
     
     cout<<"Mult_1: s_inner_col * v_inner_row_result2 : \n";
@@ -197,8 +201,8 @@ int main () {
     print_matrix(v_inner_col,Ny-2,Nx-2);
 
     cout<<"2nd mult v_inner_col  after BCs added: \n";
-    cblas_daxpy((Nx-2)*(Ny-2),1.0,v_BC_bottom,1,v_inner_col,1);//v_inner updated
-    cblas_daxpy((Nx-2)*(Ny-2),-1.0,v_BC_top,1,v_inner_col,1);//
+    cblas_daxpy((Nx-2)*(Ny-2),-one_2dy,v_BC_bottom,1,v_inner_col,1);
+    cblas_daxpy((Nx-2)*(Ny-2),one_2dy,v_BC_top,1,v_inner_col,1);
     print_matrix(v_inner_col,Ny-2,Nx-2);
 
     cout<<"Mult_2: s_inner_row_result2 * v_inner_col: \n";
@@ -206,20 +210,58 @@ int main () {
     print_matrix(mult_2,Ny-2,Nx-2);
 
     /**
+     * @brief 2nd order term for v @ t + dt - mult 3 
+     */
+
+    cout<<"Mult_3: C_sb * v_inner \n";
+    double *C_sb=new double [ldA*nsv];
+    const double one_Redx2=1/Re/dx/dx;//1st KU 
+    const double one_Redy2=1/Re/dy/dy;//3rd KU
+    const double two_Redxdy=-2/Re/dx/dx-2/Re/dy/dy;//diag 
+    FillSBMatrix(nsv, C_sb,ldA,Nx,Ny,one_Redx2,one_Redy2,two_Redxdy);
+    cblas_dsbmv(CblasColMajor, CblasUpper,nsv,KL,1.0,C_sb,ldA,
+                    v_inner,1,0.0,mult_3,1);
+
+    //Add boundary conditions - check if everything added or not
+    cblas_daxpy((Nx-2)*(Ny-2),one_Redy2,v_BC_bottom,1,mult_3,1);
+    cblas_daxpy((Nx-2)*(Ny-2),one_Redy2,v_BC_top,1,mult_3,1);
+    cblas_daxpy((Nx-2)*(Ny-2),one_Redx2,v_BC_left,1,mult_3,1);
+    cblas_daxpy((Nx-2)*(Ny-2),one_Redx2,v_BC_right,1,mult_3,1);
+
+    print_matrix(mult_3,Ny-2,Nx-2);
+
+    /**
+     * @brief Add mult_i together on RHS 
+     */
+
+    cout<<"Addition Result:  \n";
+    cblas_daxpy((Ny-2)*(Nx-2),-1.0,mult_1,1,mult_3,1);
+    cblas_daxpy((Ny-2)*(Nx-2),1.0,mult_2,1,mult_3,1);
+    print_matrix(mult_3,Ny-2,Nx-2);
+
+    cout<<"v @ t + Dt \n";
+
+    cblas_dscal((Ny-2)*(Nx-2),dt,mult_3,1);
+    cblas_daxpy((Ny-2)*(Nx-2),1.0,v_inner,1,mult_3,1);
+    print_matrix(mult_3,Ny-2,Nx-2);
+
+
+    /**
      * @brief Poisson solver 
      */
-    
+
     int ldAgb=1+2*KL+KU;//2*Kl+Ku+1
     double *A_gb=new double [ldAgb*nsv];
     FillGBMatrix(nsv,A_gb,ldAgb,Nx,Ny,one_dx2,one_dy2,two_dxdy);
     LUfactorisation(A_gb,nsv,ldAgb,KL,KU);
 
     delete [] v_BC_top,v_BC_bottom,v_BC_left,v_BC_right;
-    delete [] v,s,v_inner,s_inner,A,A_gb,B_col,B_row;
+    delete [] A,A_gb,B_col,B_row,C_sb;
+    delete [] v,s,v_inner,s_inner;
     delete [] s_inner_col,v_inner_col;
     delete [] v_inner_row,v_inner_row_result1,v_inner_row_result2;
     delete [] s_inner_row,s_inner_row_result1,s_inner_row_result2;
-    delete [] mult_1,mult_2;
+    delete [] mult_1,mult_2,mult_3;
 }
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
@@ -321,14 +363,14 @@ void FillGBmatrix_1stDerCentral_col(double *B, int ldB, int nsv,int Ny,double on
             B[i*ldB]   =0.0;
         }
         else {
-           B[i*ldB]   =-one_2dy;
+           B[i*ldB]   =one_2dy;
         }
         B[i*ldB+1] = 0.0; 
         if ((i+1)%(Ny-2)==0) {//every 3rd position 0 
             B[i*ldB+2]   =0.0;
         }
         else {
-           B[i*ldB+2] = one_2dy;
+           B[i*ldB+2] = -one_2dy;
         }
     }
 }
@@ -339,14 +381,14 @@ void FillGBmatrix_1stDerCentral_row(double *B, int ldB, int nsv,int Nx,double on
             B[i*ldB]   =0.0;
         }
         else {
-           B[i*ldB]   =-one_2dx;
+           B[i*ldB]   =one_2dx;
         }
         B[i*ldB+1] = 0.0; 
         if ((i+1)%(Nx-2)==0) {//every 3rd position 0 
             B[i*ldB+2]   =0.0;
         }
         else {
-           B[i*ldB+2] = one_2dx;
+           B[i*ldB+2] = -one_2dx;
         }
     }
 }
