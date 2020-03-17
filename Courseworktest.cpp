@@ -29,6 +29,7 @@ extern "C" {
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
 double* v_BC_left,double* v_BC_right,int Nx,int Ny,double dx,double dy);
+
 void FillSBMatrix(int nsv, double* A, int ldA,int Nx,int Ny, const double one_dx2,
 const double one_dy2,const double two_dxdy);
 void InnerVorticity(const int nsv,const int KL,double* A,const int ldA,double* s_inner,double* v_inner);
@@ -38,7 +39,8 @@ void FillGBmatrix_1stDerCentral_col(double *B, int ldB, int nsv,int Ny,double on
 void FillGBmatrix_1stDerCentral_row(double *B, int ldB, int nsv,int Nx,double one_2dx);
 void print_matrix (const double *A,const int row, const int col);
 void print_matrix_row (const double *A,const int row, const int col);
-void LUfactorisation(double* A, int nsv2, int lda2,int KL,int KU);
+void LUfactorisation(double* A, int nsv2, int lda2,int KL,int KU,int *ipiv);
+void PoissonSolver(int ldA, int nsv, double* A, double* v , double* u,int KL,int KU,int* ipiv);
 void SolveLapack(int nsv, double* A, double* omega, double *psi, double* u, int nsv2, int lda2, int* ipiv);
 void Col2Row(double* A_col,double* B_row,int row,int col);
 void Row2Col(double* A_row,double* B_col,int row,int col);
@@ -47,34 +49,22 @@ int main () {
     double Lx=1.0;
     double Ly=1.0;
     double Re=100;
-    int Nx=6;//columns
-    int Ny=6;//rows
-    double dt=.01;//time step 
+    int Nx=5;//columns
+    int Ny=5;//rows
+    double dt=.0001;//time step 
     double T=100;
     double dx=Lx/(Nx-1.0);
     double dy=Ly/(Ny-1.0);
 
-    //stream function initialisation 
-    double* v=new double[(Nx)*(Ny)];//just for for loop check
-    double* s=new double[(Nx)*(Ny)]; 
-    memset(s, 0, (Nx)*(Ny)*sizeof(s[0]));//to fill array with 0s - check it 
-    //initialise stream function once
-
-    for (int i=1;i<Nx-1;++i) {
-        for (int j=1;j<Ny-1;++j){
-            s[i*Ny+j]=1.0;
-        }
-    }
-    print_matrix(s,Ny,Nx);
-    
     double *s_inner=new double [(Ny-2)*(Nx-2)];
-    //initialise s_inner
-    for (int i=0;i<(Nx-1)*(Ny-1);++i) {
-        s_inner[i]=1;
+    memset(s_inner, 0.0, (Nx-2)*(Ny-2)*sizeof(s_inner[0]));
+    for (int i=0;i<(Nx-2)*(Ny-2);++i) {
+        s_inner[i]=1.0;
     }
-
+    
     cout<<"s_inner is: "<<endl;
     print_matrix(s_inner,Ny-2,Nx-2);
+
 
      /**
      * @brief Computes Boundary conditions in distinct vectors
@@ -125,15 +115,6 @@ int main () {
     cout<<"Inner vorticity @ t \n";
     print_matrix(v_inner,Ny-2,Nx-2);
 
-     //for loops for check
-    for (int i=1;i<Nx-1;++i) {
-        for (int j=1;j<Ny-1;++j){//rows
-            v[i*Ny+j]=((one_dx2)*(s[(i+1)*Ny+j]-2*s[i*Ny+j]+s[(i-1)*Ny+j])+
-            ((one_dy2)*(s[i*Ny+j+1]-2*s[i*Ny+j]+s[i*Ny+j-1])));
-        }
-    }
-    cout<<"Inner vorticity @ t (for loops):  \n";
-    print_matrix(v,Ny,Nx);
 
     /**
      * @brief makes General banded matrices vorticity at t + Dt  
@@ -146,7 +127,6 @@ int main () {
     int nsvB=(Ny-2)*(Nx-2);
     double one_2dy=1.0/2.0/dy;
     double one_2dx=1.0/2.0/dx;
-    
     double *B_col=new double[ldB*nsvB];
     double *B_row=new double[ldB*nsvB];
     
@@ -169,6 +149,8 @@ int main () {
     double *mult_2=new double [(Ny-2)*(Nx-2)];
     double *mult_3=new double [(Ny-2)*(Nx-2)];
     
+
+
     cout<<"1st mult s_inner_col: \n";
     cblas_dgbmv(CblasColMajor,CblasNoTrans,nsvB,nsvB,1,1,1.0,B_col,ldB,s_inner,1,0.0,s_inner_col,1);
     print_matrix(s_inner_col,Ny-2,Nx-2);
@@ -239,9 +221,9 @@ int main () {
     cblas_daxpy((Ny-2)*(Nx-2),1.0,mult_2,1,mult_3,1);
     print_matrix(mult_3,Ny-2,Nx-2);
 
-    cout<<"v @ t + Dt \n";
+    cout<<"v_inner @ t + Dt \n";
 
-    cblas_dscal((Ny-2)*(Nx-2),dt,mult_3,1);
+    cblas_dscal((Ny-2)*(Nx-2),dt,mult_3,1);//can be placed in daxpy 
     cblas_daxpy((Ny-2)*(Nx-2),1.0,v_inner,1,mult_3,1);
     print_matrix(mult_3,Ny-2,Nx-2);
 
@@ -252,22 +234,32 @@ int main () {
 
     int ldAgb=1+2*KL+KU;//2*Kl+Ku+1
     double *A_gb=new double [ldAgb*nsv];
+    int *ipiv = new int[nsv];
     FillGBMatrix(nsv,A_gb,ldAgb,Nx,Ny,one_dx2,one_dy2,two_dxdy);
-    LUfactorisation(A_gb,nsv,ldAgb,KL,KU);
+    LUfactorisation(A_gb,nsv,ldAgb,KL,KU,ipiv);//happens only once 
+    PoissonSolver(ldAgb,nsv,A_gb,mult_3,s_inner,KL,KU,ipiv);
+
+    cout<<"s_inner @ t + Dt \n";
+    print_matrix(s_inner,Ny-2,Nx-2);
+    
+    dt+=dt;
+    cout<<dt<<endl;
 
     delete [] v_BC_top,v_BC_bottom,v_BC_left,v_BC_right;
     delete [] A,A_gb,B_col,B_row,C_sb;
-    delete [] v,s,v_inner,s_inner;
+    delete [] v_inner,s_inner;
     delete [] s_inner_col,v_inner_col;
     delete [] v_inner_row,v_inner_row_result1,v_inner_row_result2;
     delete [] s_inner_row,s_inner_row_result1,s_inner_row_result2;
     delete [] mult_1,mult_2,mult_3;
+    delete [] ipiv;
 }
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
 double* v_BC_left,double* v_BC_right,int Nx,int Ny,double dx,double dy){
     
     double U=1.0;
+    
     memset(v_BC_top, 0.0, (Nx-2)*(Ny-2)*sizeof(v_BC_top[0]));
     memset(v_BC_bottom, 0.0, (Nx-2)*(Ny-2)*sizeof(v_BC_bottom[0]));
     memset(v_BC_left, 0.0, (Nx-2)*(Ny-2)*sizeof(v_BC_left[0]));
@@ -287,8 +279,7 @@ double* v_BC_left,double* v_BC_right,int Nx,int Ny,double dx,double dy){
 
 
     for (int i=0;i<Ny-2;++i){
-    v_BC_right[(Nx-2-1)*(Ny-2)+i]=-s_inner[(Nx-2-1)*(Ny-2)+i]*2/dx/dx;
-    //v[(Nx-1)*Ny+i]=-s[(Nx-2)*Ny+i]*2/dx/dx;
+        v_BC_right[(Nx-2-1)*(Ny-2)+i]=-s_inner[(Nx-2-1)*(Ny-2)+i]*2/dx/dx;
     }
 }
 
@@ -328,9 +319,9 @@ const double one_dy2,const double two_dxdy){
     }
 }
 
- void LUfactorisation(double* A, int nsv, int lda,int KL,int KU){     
+ void LUfactorisation(double* A, int nsv, int lda,int KL,int KU,int *ipiv){     
     int info;
-    int *ipiv = new int[nsv];
+   
     
     F77NAME(dgbtrf)(nsv, nsv, KL, KU, A, lda, ipiv, &info);
 
@@ -413,15 +404,14 @@ void print_matrix_row (const double *A,const int row, const int col) {//print ma
     }
     cout<<endl;
 }
-void SolveLapack(int nsv, double* A, double* omega, double *psi, double* u, int nsv2, int lda2, int* ipiv) {
+void PoissonSolver(int ldA, int nsv, double* A, double* v , double* u,int KL,int KU,int* ipiv) {
     int info;
     int nrhs = 1;
-    int KL = floor(lda2/2);         // Number of lower diagonals
-    int KU = floor(lda2/2);         // Number of upper diagonals
+    int ldu =nsv;
 
-    cblas_dcopy(nsv, omega, 1, u, 1);
+    cblas_dcopy(nsv, v, 1, u, 1);
 
-    F77NAME(dgbtrs)(lda2, nsv2, KL, KU, nrhs, A, 3*KL+1, ipiv, u, nsv2, &info);
+    F77NAME(dgbtrs)('N', nsv, KL, KU, nrhs, A, ldA, ipiv, u, ldu, &info);
     if (info) {
         cout << "Error in solve: " << info << endl;
     }

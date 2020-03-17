@@ -1,0 +1,72 @@
+commit 123b80838e691dda2ef01fc65013ee2225ac68a1
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Mon Mar 16 02:25:04 2020 +0000
+
+    6th commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+
+commit 1adc4bc8ab5fdee4aed8d3017a165392697aae9d
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Sun Mar 15 23:24:05 2020 +0000
+
+    5th commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+M	Makefile
+
+commit 400817c8318b70b2283118a114625814307c39b8
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Sun Mar 15 03:29:21 2020 +0000
+
+    4th commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+
+commit 524ff6eacddec7a24f6c5c5a6da1fc4e087b3e29
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Sat Mar 14 16:40:16 2020 +0000
+
+    3rd commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+M	testing.cpp
+
+commit 2217e41a0a239173c34ca68fa072e999c0f5d031
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Thu Mar 12 22:22:36 2020 +0000
+
+    2nd commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+M	testing.cpp
+
+commit 9b81e29c7b45b9111d43938e419c6007c754dc8d
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Thu Mar 12 17:24:32 2020 +0000
+
+    1st commit
+
+M	Courseworktest
+M	Courseworktest.cpp
+
+commit 572c0eef300e8b1f10b8f11ed184c5b080c27670
+Author: ss8517 <stavros.sikkis@imperial.ac.uk>
+Date:   Thu Mar 12 01:59:21 2020 +0000
+
+    stavros commit
+
+A	Courseworktest
+A	Courseworktest.cpp
+A	LidDrivenCavity.cpp
+A	LidDrivenCavity.h
+A	LidDrivenCavitySolver.cpp
+A	Makefile
+A	README.md
+A	testing
+A	testing.cpp
