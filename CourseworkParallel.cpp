@@ -1,48 +1,43 @@
-#include <bits/stdc++.h>
 #include <iostream>
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-
+using namespace std;
 #include <string>   
 #define _USE_MATH_DEFINES //allows to use pi as M_PI using math,h 
 #include <math.h>
 #include <cblas.h>
 #include <cmath>
 #include "cstring"//to initalise evrrything to 0
-//#include <chrono>
-
-using namespace std;
-//using namespace std::chrono;
 
 //#include "LidDrivenCavity.h"
 //print matrix
 #define F77NAME(x) x##_
 extern "C" {
-    //LU factorisation of general banded matrix
-    void F77NAME(dgbtrf)(const int& N, const int& M, const int& KL, 
-                        const int& KU, double* AB, const int& LDAB,
-                        int* IPIV, int* INFO);
-
-    // Solves pre-factored system of equations
-    void F77NAME(dgbtrs)(const char& TRANS, const int& N, const int& KL, 
-                        const int& KU,
-                        const int& NRHS, double* AB, const int& LDAB,
-                        int* IPIV, double* B, const int& LDB, int* INFO);
-
-
-    /*
+    
     void F77NAME(pdgbtrf) (const int& 	N,const int& 	BWL, const int& 	BWU, double *A, const int& JA,
     int* DESCA,int * IPIV, double *AF, const int& LAF, double  * WORK, const int&	LWORK,
     int * INFO);
 
     
-    void F77NAME(pdgbtrf) (const char& TRANS, const int& N, const int& BWL, const int& BWU,
+    void F77NAME(pdgbtrs) (const char& TRANS, const int& N, const int& BWL, const int& BWU,
     const int& NRHS, double * A, const int& JA, int * DESCA,int * IPIV,
     double * B, const int& IB, int * DESCB, double * AF, const int& LAF,
     double * WORK, const int& LWORK, int * info);
-    */
+
+    void Cblacs_pinfo(int*, int*);
+    void Cblacs_get(int, int, int*);
+    void Cblacs_gridinit(int*, char const*, int, int);
+    void Cblacs_gridinfo(int, int*, int*, int*, int*);
+    void Cblacs_barrier(int , char*);
+    void Cblacs_gridexit(int);
+    void Cblacs_exit(int);
+
+    int numroc_(int const& n, int const& nb, int const& iproc, int const& isproc, int const& nprocs);
+    void pdpbsv_(char const *uplo, const int& n, const int& bw, const int& nrhs, 
+    double* A, const int& ja, int*descA, double* B, const int&ib, int* descB, 
+    double* work, const int& lwork, int* info);
 }
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
@@ -64,7 +59,6 @@ void Col2Row(double* A_col,double* B_row,int row,int col);
 void Row2Col(double* A_row,double* B_col,int row,int col);
 
 int main () {
-    clock_t start, end;
     double Lx=1.0;
     double Ly=1.0;
     double Re=100;
@@ -101,11 +95,7 @@ int main () {
     double* v_BC_left=new double[(Nx-2)*(Ny-2)];
     double* v_BC_right=new double[(Nx-2)*(Ny-2)];
     
-    
     BoundaryConditions(s_inner,v_BC_top,v_BC_bottom,v_BC_left,v_BC_right,Nx,Ny,dx,dy);
-    
-    
-    
     cout<<"The Bopundary conditions are: \n";
     cout<<"Top: \n";
     print_matrix(v_BC_top,Ny-2,Nx-2);
@@ -136,11 +126,11 @@ int main () {
     //empty arrays to store blas multiplication results
     
     FillSBMatrix(nsv,A,ldA,Nx,Ny,one_dx2,one_dy2,two_dxdy);
-    
     InnerVorticity(nsv,KL,A,ldA,s_inner,v_inner);// v_inner <= A s_inner + v_inner
     cout<<"Inner vorticity @ t \n";
     print_matrix(v_inner,Ny-2,Nx-2);
-    
+
+
     /**
      * @brief makes General banded matrices vorticity at t + Dt  
      * @param ldB - 1+kl+ku , number of rows, padding roes excluded
@@ -149,7 +139,7 @@ int main () {
     */
    
     int ldB=3;
-    
+    //nsvB =nsv 
     double one_2dy=1.0/2.0/dy;
     double one_2dx=1.0/2.0/dx;
     double *B_col=new double[ldB*nsv];
@@ -258,24 +248,20 @@ int main () {
      * @brief Poisson solver 
      */
 
+
+
     int ldAgb=1+2*KL+KU;//2*Kl+Ku+1
     double *A_gb=new double [ldAgb*nsv];
-    //cout<<"General banded matrix A_gb: \n";
     int *ipiv = new int[nsv];
     FillGBMatrix(nsv,A_gb,ldAgb,Nx,Ny,one_dx2,one_dy2,two_dxdy);
-    
-    start = clock ();
     LUfactorisation(A_gb,nsv,ldAgb,KL,KU,ipiv);//happens only once 
     PoissonSolver(ldAgb,nsv,A_gb,mult_3,s_inner,KL,KU,ipiv);
-    end = clock(); 
-    print_matrix(s_inner,Ny-2,Nx-2);
-    double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
-    cout<<"Time taken for BoundaryConditions: "<<endl;
-    printf( "%6.20lf \n", time_taken ); 
-    
+
     cout<<"s_inner @ t + Dt \n";
     print_matrix(s_inner,Ny-2,Nx-2);
-
+    
+    dt+=dt;
+    cout<<dt<<endl;
 
     delete [] v_BC_top,v_BC_bottom,v_BC_left,v_BC_right;
     delete [] A,A_gb,B_col,B_row,C_sb;
@@ -299,7 +285,6 @@ double* v_BC_left,double* v_BC_right,int Nx,int Ny,double dx,double dy){
     
     for (int i=0;i<Nx-2;++i){
         v_BC_top[(Ny-2)*i+Ny-2-1]=-s_inner[((Ny-2)*i)+Ny-3]*2/dy/dy-2*U/dy;//top
-        printf("Hello!");
     }
 
     for (int i=0;i<Nx-2;++i){

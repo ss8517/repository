@@ -3,13 +3,15 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-using namespace std;
 #include <string>   
-#define _USE_MATH_DEFINES //allows to use pi as M_PI using math,h 
 #include <math.h>
 #include <cblas.h>
 #include <cmath>
-#include "cstring"//to initalise evrrything to 0
+#include "cstring"
+
+
+using namespace std;
+
 
 //#include "LidDrivenCavity.h"
 //print matrix
@@ -50,16 +52,16 @@ int main () {
     double Lx=1.0;
     double Ly=1.0;
     double Re=100;
-    int Nx=5;//columns
-    int Ny=5;//rows
+    int Nx=161;//columns
+    int Ny=161;//rows
     double dt=.0001;//time step 
     double t=dt;
-    double T= 30.;
+    double T= 1.;
     double dx=Lx/(Nx-1.0);
     double dy=Ly/(Ny-1.0);
     double *s_inner=new double [(Ny-2)*(Nx-2)];
     memset(s_inner, 0.0, (Nx-2)*(Ny-2)*sizeof(s_inner[0]));
-    /*
+    /*//switch this on for inner stream values of 1 
     for (int i=0;i<(Nx-2)*(Ny-2);++i) {
         s_inner[i]=1.0;
     }
@@ -129,9 +131,12 @@ int main () {
         memset(mult_2, 0.0, (Nx-2)*(Ny-2)*sizeof(mult_2[0]));
         memset(mult_3, 0.0, (Nx-2)*(Ny-2)*sizeof(mult_2[0]));
 
+        
         //update boundary conditions
         BoundaryConditions(s_inner,v_BC_top,v_BC_bottom,v_BC_left,v_BC_right,Nx,Ny,dx,dy);
         //Calculate inner vorticity 
+        
+
         InnerVorticity(nsv,KL,A,ldA,s_inner,v_inner);// v_inner <= A s_inner + v_inner
         
         //s_inner col  major 
@@ -187,8 +192,16 @@ int main () {
         
     }
     
-    print_matrix(s_inner,Ny-2,Nx-2);
-
+    //print_matrix(s_inner,Ny-2,Nx-2);
+        ofstream vOut("data.txt", ios::out | ios::trunc );
+    vOut <<setw(4) << "Psi" << endl;
+for (int i = 0; i < Ny-2; ++i) {
+    for (int j = 0; j < Nx-2; ++j) {
+        vOut <<setw(20)<<setprecision(8) <<s_inner[j*(Ny-2)+i];
+    }
+     vOut <<endl;
+}
+vOut.close();
     delete [] v_BC_top,v_BC_bottom,v_BC_left,v_BC_right;
     delete [] A,A_gb,B_col,B_row,C_sb;
     delete [] v_inner,s_inner;
@@ -200,7 +213,6 @@ int main () {
 
     return 0;
 }
-
 
 void BoundaryConditions(double* s_inner, double* v_BC_top,double*v_BC_bottom,
 double* v_BC_left,double* v_BC_right,int Nx,int Ny,double dx,double dy){
