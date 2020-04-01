@@ -1,4 +1,4 @@
-This is a numerical solver to the widely known Lid Driven Cavity problem of fluid mechanics. This provides a solution to the Navier-Stokes equations by eliminating pressure from the equation and tranforming it into a problem of corticity and stream function. 
+This is a numerical solver to the widely known Lid Driven Cavity problem of fluid mechanics. It provides a solution to the Navier-Stokes equations by eliminating pressure from the equation and tranforming it into a problem of vorticity and stream function only. 
 
 The Makefile runs the parallel version of the solver through main by compiling the classes. 
 
