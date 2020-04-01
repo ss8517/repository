@@ -379,7 +379,7 @@ void LidDrivenCavity::Initialise(double xlen, double ylen,int nx, int ny,int px,
     print_matrix(mult_3,Ny-2,Nx-2);
 
 
-    psolver->BuildLocalMatrices( A_loc,  B_loc, mult_3, size_, ldAgb, Nx, Ny, one_dx2, one_dy2, two_dxdy,ipiv, KL, KU
+    psolver->BuildLocalMatrices( s_inner,A_loc,  B_loc,B_loc_red, mult_3, size_, ldAgb, Nx, Ny, one_dx2, one_dy2, two_dxdy,ipiv, KL, KU
         , desca, AF, WORK, descb) ;
     
     //print_matrix(A_loc,ldAgb,NB);
@@ -389,20 +389,5 @@ void LidDrivenCavity::Initialise(double xlen, double ylen,int nx, int ny,int px,
     //psolver->LinearSolver(A_loc,B_loc,N,ipiv,BWU,BWL,desca,descb,AF,LAF,WORK,LWORK,mycol);
 
  
-    /*
-    int rank, psize;
-
-    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-    MPI_Comm_size(MPI_COMM_WORLD,&psize); 
-    
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Gather(B_loc,NB,MPI_DOUBLE,B_loc_red,NB,MPI_DOUBLE,0,MPI_COMM_WORLD);
-    
-    
-    if (rank==0) {
-        cblas_dcopy((Nx-2)*(Ny-2),B_loc_red,1,s_inner,1);
-    }
-    
-    MPI_Barrier(MPI_COMM_WORLD);
-    */
+ 
 }

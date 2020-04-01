@@ -28,5 +28,5 @@ int main() {
 
     solver->Initialise(Lx,Ly,Nx,Ny,Px,Py,dt,T,Re);
 
-    //delete [] solver;
+    //delete solver;
 }

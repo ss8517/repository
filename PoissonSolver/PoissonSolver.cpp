@@ -50,7 +50,7 @@ void PoissonSolver::print_matrix (const double *A,const int row, const int col) 
     cout<<endl;
 }
 
-void PoissonSolver::BuildLocalMatrices (double* A_loc, double* B_loc,double* mult_3,int size_,int ldAgb,int Nx,int Ny,double one_dx2,double one_dy2,double two_dxdy,int* ipiv,int KL,int KU,
+void PoissonSolver::BuildLocalMatrices (double* s_inner,double* A_loc, double* B_loc,double* B_loc_red, double* mult_3,int size_,int ldAgb,int Nx,int Ny,double one_dx2,double one_dy2,double two_dxdy,int* ipiv,int KL,int KU,
         int* desca,double* AF,double* WORK,int* descb) 
 {
 
@@ -227,20 +227,41 @@ void PoissonSolver::BuildLocalMatrices (double* A_loc, double* B_loc,double* mul
     }
 }
 
-        cout<<"Matrices"<<endl;
-        this->print_matrix(A_loc,ldAgb,NB);
-        this->print_matrix(B_loc,(NB),1);
 
         double MPIt1 = MPI_Wtime();
         this->LUfactorisation(A_loc,N,ipiv,BWU,BWL,desca,AF,LAF,WORK,LWORK,mycol);
         this->LinearSolver(A_loc,B_loc,N,ipiv,BWU,BWL,desca,descb,AF,LAF,WORK,LWORK,mycol);
         
         double MPIt2 = MPI_Wtime();
+        
         double MPIelapsed=MPIt2-MPIt1;
     
-        Cblacs_gridexit( ctxt );
-
+        Cblacs_gridexit( ctxt );//done using grid
+    
+        int rank, psize;
+        //---------------------- Look this part again
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&psize); 
+    
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Gather(B_loc,NB,MPI_DOUBLE,B_loc_red,NB,MPI_DOUBLE,0,MPI_COMM_WORLD);
+    
+        if (rank==0) {
+        cblas_dcopy((Nx-2)*(Ny-2),B_loc_red,1,s_inner,1);
+        }
+    
+        MPI_Barrier(MPI_COMM_WORLD);
+        
         Cblacs_exit(ctxt);
+    
+        if (rank==0) {
+        cout<<"Updated s_inner: "<<endl;
+        print_matrix(s_inner,Ny-2,Nx-2);
+        cout<<"Time taken for PDBTRF/PDGBTRS: "<<endl;
+        printf( "%6.20lf \n", MPIelapsed );
+        
+    }
+    
 }
 
 

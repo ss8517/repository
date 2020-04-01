@@ -1,0 +1,7 @@
+This is a numerical solver to the widely known Lid Driven Cavity problem of fluid mechanics. This provides a solution to the Navier-Stokes equations by eliminating pressure from the equation and tranforming it into a problem of corticity and stream function. 
+
+The Makefile runs the parallel version of the solver through main by compiling the classes. 
+
+The serial version of the solver is called iterationtest.cpp. (E.g. Run in Linux by linking against LDLIBS=-llapack -lcblas -lblas -lgfortran)
+
+
